@@ -5,6 +5,7 @@
 #include "ofxSTL.h"
 #include "ofxAutoControlPanel.h"
 #include "ofxDelaunay.h"
+#include "simpleSkein.h"
 
 #include "ofxCv.h"
 using namespace ofxCv;
@@ -43,6 +44,7 @@ public:
 	void updateSurface();
 	void updateTriangles();
 	void updateTrianglesSimplify();
+	void drawDepthMap();
 	void updateTrianglesRandom();
 	void addBack(ofVec3f& a, ofVec3f& b, ofVec3f& c);
 	void addBack(ofVec3f& a, ofVec3f& b, ofVec3f& c, ofVec3f& d);
@@ -82,6 +84,8 @@ public:
 	#endif
 	
 	ofxDelaunay triangulator;
+	
+	SimpleSkein simpleSkein;
 	
 	float injectWatermarkTime, updateSurfaceTime, updateTrianglesTime, updateBackTime, postProcessTime, renderTime;
 };

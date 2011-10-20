@@ -60,11 +60,17 @@ void testApp::setup() {
 	ofSetVerticalSync(true);
 	
 	panel.setup(250, 800);
-	panel.addPanel("Settings");
+	panel.addPanel("STL");
+	panel.addSlider("minDepth", 30, 10, 150);
+	panel.addSlider("maxDepth", 80, 10, 150);
+	panel.addSlider("numSamples", 10, 5, 160);
+	panel.addToggle("exportDepths", false);
+	
 	panel.addSlider("zCutoff", 80, 20, 200);
 	panel.addSlider("fovWidth", .5, 0, 1);
 	panel.addSlider("fovHeight", .75, 0, 1);
 	panel.addSlider("stlSize", 60, 10, 120);
+	panel.addToggle("exportGcode", false);
 	panel.addToggle("exportStl", false);
 	panel.addToggle("useRandomExport", false);
 	
@@ -77,7 +83,7 @@ void testApp::setup() {
 	panel.addSlider("diffuseAmount", 245, 0, 255);
 	
 	panel.addPanel("Extra");
-	panel.addToggle("drawMesh", true);
+	panel.addToggle("drawMesh", false);
 	panel.addToggle("drawWire", false);
 	panel.addToggle("useRandom", false);
 	panel.addSlider("temporalBlur", .9, .75, 1);
@@ -183,6 +189,14 @@ void testApp::update() {
 		postProcess();
 		postProcessTime = stopTimer();
 		
+		//startTimer();
+		simpleSkein.minScanDepth = panel.getValueF("minDepth");
+		simpleSkein.maxScanDepth = panel.getValueF("maxDepth");
+		simpleSkein.numSamples = panel.getValueF("numSamples");
+		simpleSkein.skeinDepthMap(kinect.getHeight(), kinect.getWidth(), kinect.getDistancePixels(), .5);
+		
+		//skeinTime = stopTimer();
+		
 		if(exportStl) {
 			string pocoTime = Poco::DateTimeFormatter::format(Poco::LocalDateTime(), "%Y-%m-%d at %H.%M.%S");
 			
@@ -199,6 +213,11 @@ void testApp::update() {
 #endif
 			
 			panel.setValueB("exportStl", false);
+		}
+		
+		if(panel.getValueB("exportGcode")) {
+			simpleSkein.makeGcode("~/testout.gcode");
+			panel.setValueB("exportGcode", false);
 		}
 	}
 	
@@ -547,6 +566,16 @@ void testApp::draw() {
 			drawTriangleWire(triangles);
 		}
 		
+		// Draw the depth map.
+		ofPushMatrix();
+			glRotatef(180,0,0,1);
+			// TODO: Why doesn't this line up?
+			glTranslated(0,0,backOffset);
+			glScalef(globalScale/8,globalScale/8,globalScale/8);
+		
+			simpleSkein.draw();
+		ofPopMatrix();
+		
 		renderTime = stopTimer();
 	}
 	
@@ -556,7 +585,7 @@ void testApp::draw() {
 	glDisable(GL_DEPTH_TEST);
 	
 	ofPushMatrix();
-	ofTranslate(ofGetWidth() - 200, ofGetHeight() - 80);
+	ofTranslate(ofGetWidth() - 200, ofGetHeight() - 100);
 	ofDrawBitmapString("injectWatermarkTime: " + ofToString((int) injectWatermarkTime), 0, 0);
 	ofDrawBitmapString("updateSurfaceTime: " + ofToString((int) updateSurfaceTime), 0, 10);
 	ofDrawBitmapString("updateTrianglesTime: " + ofToString((int) updateTrianglesTime), 0, 20);
@@ -565,6 +594,8 @@ void testApp::draw() {
 	ofDrawBitmapString("tris: " + ofToString((int) triangles.size()), 0, 50);
 	ofDrawBitmapString("back: " + ofToString((int) backTriangles.size()), 0, 60);
 	ofDrawBitmapString("postProcessTime: " + ofToString((int) postProcessTime), 0, 70);
+	ofDrawBitmapString("minDistance: " + ofToString((int) simpleSkein.getMinDepth()), 0, 80);
+	ofDrawBitmapString("maxDistance: " + ofToString((int) simpleSkein.getMaxDepth()), 0, 90);
 	ofPopMatrix();
 }
 
