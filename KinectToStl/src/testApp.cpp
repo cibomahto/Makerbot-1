@@ -64,7 +64,13 @@ void testApp::setup() {
 	panel.addSlider("minDepth", 30, 10, 150);
 	panel.addSlider("maxDepth", 80, 10, 150);
 	panel.addSlider("numSamples", 10, 5, 160);
-	panel.addToggle("exportDepths", false);
+	panel.addSlider("infillGridSize", 30, 5, 60);
+
+	panel.addToggle("showDepthMap", false);
+	panel.addToggle("showSliceImages", true);
+	panel.addToggle("showSliceContours", true);
+	panel.addToggle("showInfillImages", true);
+	panel.addToggle("showInfillContours", true);
 	
 	panel.addSlider("zCutoff", 80, 20, 200);
 	panel.addSlider("fovWidth", .5, 0, 1);
@@ -193,6 +199,7 @@ void testApp::update() {
 		simpleSkein.minScanDepth = panel.getValueF("minDepth");
 		simpleSkein.maxScanDepth = panel.getValueF("maxDepth");
 		simpleSkein.numSamples = panel.getValueF("numSamples");
+		simpleSkein.infillGridSize = panel.getValueF("infillGridSize");
 		simpleSkein.skeinDepthMap(kinect.getHeight(), kinect.getWidth(), kinect.getDistancePixels(), .5);
 		
 		//skeinTime = stopTimer();
@@ -573,7 +580,11 @@ void testApp::draw() {
 			glTranslated(0,0,backOffset);
 			glScalef(globalScale/8,globalScale/8,globalScale/8);
 		
-			simpleSkein.draw();
+			simpleSkein.draw(panel.getValueB("showDepthMap"),
+							 panel.getValueB("showSliceImages"),
+							 panel.getValueB("showSliceContours"),
+							 panel.getValueB("showInfillImages"),
+							 panel.getValueB("showInfillContours"));
 		ofPopMatrix();
 		
 		renderTime = stopTimer();

@@ -9,6 +9,7 @@
 
 #include "ofMain.h"
 #include "ofxCv.h"
+#include "ofxOpenCv.h"
 using namespace ofxCv;
 using namespace cv;
 
@@ -18,12 +19,12 @@ using namespace cv;
 class SimpleSkein {
 private:
 	ofImage depthMapImage; // 2d depth map
-	
-	vector<ofImage> drawSliceImages;  // Slice data, in RGBA.
 
 	vector<ofImage> sliceImages;  // Slice data, in grayscale.
-
-	vector<ofxCv::ContourFinder> sliceContours;
+	vector<ofxCvGrayscaleImage> infillImages;  // Infill data, in grayscale.
+	
+	vector<ofxCv::ContourFinder> sliceContours;		// Contours for external shells
+	vector<ofxCv::ContourFinder> infillContours;	// Contours for infill
 	
 	float layerHeight;
 	
@@ -34,10 +35,12 @@ public:
     SimpleSkein();
 	~SimpleSkein();
 
-	float minScanDepth;
-	float maxScanDepth;
+	float minScanDepth;	// Minimum depth to consider
+	float maxScanDepth;	// Maximum depth to consider
 	
-	int numSamples;
+	int numSamples;		// Number of layer slices to cut the region of interest in our depth map to
+	
+	int infillGridSize;	// Size of the infill grid to paint
 	
 	float getMaxDepth() { return maxDepth; }
 	float getMinDepth() { return minDepth; }
@@ -45,7 +48,10 @@ public:
 	/**
 	 * Draw a representation of the skeined object to the screen.
 	 */
-	void draw();
+	void draw(bool drawDepth,
+			  bool drawSliceThresholds, bool drawSliceContours,
+			  bool drawInfillThresholds, bool drawInfillContours);
+
 	
 	/**
 	 * Save a gcode file out, good for printing the object.
