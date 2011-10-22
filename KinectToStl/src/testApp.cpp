@@ -64,8 +64,8 @@ void testApp::setup() {
 	panel.addSlider("minDepth", 30, 10, 150);
 	panel.addSlider("maxDepth", 80, 10, 150);
 	panel.addSlider("numSamples", 10, 1, 160);
-	panel.addSlider("numShells", 1, 1, 10);
-	panel.addSlider("infillGridSize", 30, 5, 60);
+	panel.addSlider("numShells", 1, 2, 15);
+	panel.addSlider("infillGridSize", 40, 5, 80);
 
 	panel.addToggle("showDepthMap", false);
 	panel.addToggle("showSliceImages", true);
@@ -247,10 +247,12 @@ void testApp::update() {
 			panel.setValueB("exportStl", false);
 		}
 		
-		if(panel.getValueB("exportGcode")) {
-			simpleSkein.makeGcode("~/testout.gcode");
-			panel.setValueB("exportGcode", false);
-		}
+
+	}
+	
+	if(panel.getValueB("exportGcode")) {
+		simpleSkein.makeGcode("~/testout.gcode");
+		panel.setValueB("exportGcode", false);
 	}
 	
 	float diffuse = panel.getValueF("diffuseAmount");
@@ -600,16 +602,23 @@ void testApp::draw() {
 		
 		// Draw the depth map.
 		ofPushMatrix();
-//			glRotatef(180,0,0,1);
-			// TODO: Why doesn't this line up?
-//			glTranslated(0,0,backOffset);
-//			glScalef(globalScale/8,globalScale/8,globalScale/8);
 		
-			simpleSkein.draw(panel.getValueB("showDepthMap"),
-							 panel.getValueB("showSliceImages"),
-							 panel.getValueB("showSliceContours"),
-							 panel.getValueB("showInfillImages"),
-							 panel.getValueB("showInfillContours"));
+		glRotatef(180,0,0,1);
+
+		// TODO: Why doesn't this line up?
+#ifdef OFFLINE_TEST
+		globalScale = .5;
+		glScalef(globalScale/8,globalScale/8,globalScale/8);
+#else
+		glTranslated(0,0,backOffset);
+		glScalef(globalScale/8,globalScale/8,globalScale/8);
+#endif 
+
+		simpleSkein.draw(panel.getValueB("showDepthMap"),
+						panel.getValueB("showSliceImages"),
+						panel.getValueB("showSliceContours"),
+						panel.getValueB("showInfillImages"),
+						panel.getValueB("showInfillContours"));
 		ofPopMatrix();
 		
 		renderTime = stopTimer();

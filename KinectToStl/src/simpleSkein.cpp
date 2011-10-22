@@ -9,6 +9,11 @@
 
 #include "simpleSkein.h"
 
+
+
+
+
+
 SimpleSkein::SimpleSkein() {
 	// some defaults.
 	minScanDepth = 40;
@@ -63,7 +68,8 @@ void SimpleSkein::draw(bool drawDepth,
 		
 		if (drawInfillThresholds) {
 			ofEnableBlendMode(OF_BLENDMODE_ADD);
-			infillImages[layer].draw(-depthMapImage.getWidth()/2,-depthMapImage.getHeight()/2);
+			infillImages[layer*2].draw(-depthMapImage.getWidth()/2,-depthMapImage.getHeight()/2);
+			infillImages[layer*2+1].draw(-depthMapImage.getWidth()/2,-depthMapImage.getHeight()/2);
 			ofDisableBlendMode();
 		}
 		
@@ -71,7 +77,8 @@ void SimpleSkein::draw(bool drawDepth,
 			ofSetColor(0,0,200);
 			glPushMatrix();
 			glTranslated(-depthMapImage.getWidth()/2,-depthMapImage.getHeight()/2,.1);
-			infillContours[layer].draw();
+			infillContours[layer*2].draw();
+			infillContours[layer*2+1].draw();
 			glPopMatrix();
 			ofSetColor(255,255,255);
 		}
@@ -150,7 +157,8 @@ void SimpleSkein::makeGcode(std::string fname) {
 	myfile << "G1 X57.0 Y-57.0 Z10.0 F3300.0 (move to waiting position)" << std::endl;
 	myfile << "M6 T0 (wait for toolhead parts, nozzle, HBP, etc., to reach temperature)" << std::endl;
 
-	float layers = infillContours.size();
+	//TODO: calculate this happier.
+	float layers = infillContours.size() / 2;
 		
 	// For each layer
 	for(int layer = 0; layer < layers; layer++) {
@@ -171,10 +179,16 @@ void SimpleSkein::makeGcode(std::string fname) {
 		}
 		
 		// For each contour on the infill
-		for(int contour = 0; contour < infillContours[layer].size(); contour++) {
+		for(int contour = 0; contour < infillContours[layer*2].size(); contour++) {
 			myfile << "(On contour: " << contour << ")" << std::endl;
 			
-			vector<cv::Point> points = infillContours[layer].getContour(contour);
+			vector<cv::Point> points = infillContours[layer*2].getContour(contour);
+			writeContour(myfile, points, layer);
+		}
+		for(int contour = 0; contour < infillContours[layer*2+1].size(); contour++) {
+			myfile << "(On contour: " << contour << ")" << std::endl;
+			
+			vector<cv::Point> points = infillContours[layer*2+1].getContour(contour);
 			writeContour(myfile, points, layer);
 		}
 	}
@@ -262,7 +276,7 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels) {
 		// Map the region of interest into the 8-bit plane
 		charPixels[i] = ofMap(pixels[i],minScanDepth,maxScanDepth,0,255);
 	}
-//	
+
 //	// 2. Load the data into an image for later display
 	depthMapImage.setFromPixels(charPixels, width, height, OF_IMAGE_GRAYSCALE);
 
@@ -272,7 +286,6 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels) {
 	infillImages.clear();
 	infillContours.clear();
 	
-	
 	// Detect contours along the edges
 	for (int step = 0; step < numSamples; step++) {
 		
@@ -281,7 +294,7 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels) {
 		unsigned char charLayerPixels[height*width];
 		for (uint i = 0; i < height*width; i++) {
 			if (pixels[i] < getHeightForSample(step)) {
-				charLayerPixels[i] = 15;
+				charLayerPixels[i] = 255;
 			}
 			else {
 				charLayerPixels[i] = 0;
@@ -315,7 +328,10 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels) {
 	}
 	
 	// Detect contours for the infill.
-	for (int step = 0; step < numSamples; step++) {	
+	for (int step = 0; step < numSamples; step++) {
+		
+		// Layer mask A
+		
 		// Load the layer data from the slice image
 		ofxCvGrayscaleImage layerImage = sliceImages[step];
 		
@@ -327,22 +343,29 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels) {
 		layerImage.erode();
 		layerImage.erode();
 		
-		
-		// Now, add layer mask 'a' to build a zigzag support structure
-		
 		// Now, add a checkerboard mask and then erode the image to generate infill.
 		// We want to make two sets of rectangles in a checkerboard pattern.
 		for (int yScan = 0; yScan < height; yScan++) {
-			for (int xScan = 0; xScan < width; xScan++) {
-				// If we are on an even set of rows, we want to blank out the first rectangle.
-				if (yScan %(infillGridSize*2) < infillGridSize) {
+			
+			// Pattern layer 0 is blank.
+			if ((yScan/infillGridSize)%4 == 0) {
+				for (int xScan = 0; xScan < width; xScan++) {
+					layerImage.getPixels()[yScan*width + xScan] = 0;					
+				}
+			}
+			// Pattern layer 1, checkers
+			else if ((yScan/infillGridSize)%4 == 1) {
+				for (int xScan = 0; xScan < width; xScan++) {			
 					if (xScan %(infillGridSize*2) < infillGridSize) {
 						// First, just blank out the whole line.
 						layerImage.getPixels()[yScan*width + xScan] = 0;
 					}
 				}
-				else {
-					if (xScan %(infillGridSize*2) >= infillGridSize) {
+			}
+			// Pattern layer 3, offset checkers
+			else if ((yScan/infillGridSize)%4 == 3) {
+				for (int xScan = 0; xScan < width; xScan++) {			
+					if ((xScan) %(infillGridSize*2) >= infillGridSize) {
 						// First, just blank out the whole line.
 						layerImage.getPixels()[yScan*width + xScan] = 0;
 					}
@@ -350,25 +373,61 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels) {
 			}
 		}
 		
-		
-		
-		
-		// Chop off the edges of them as well, so that the checkers aren't connected.
-		for (int yScan = 0; yScan < height; yScan+=infillGridSize) {
-			for (int xScan = 0; xScan < width; xScan+=1) {
-				layerImage.getPixels()[yScan*width + xScan] = 0;
-			}
-		}
-		
-		for (int xScan = 0; xScan < width; xScan+=infillGridSize) {
-			for (int yScan = 0; yScan < height; yScan+=1) {
-				layerImage.getPixels()[yScan*width + xScan] = 0;
-			}
-		}
-		
-		
 		// Find the contours for the image
 		ofxCv::ContourFinder layerContour;
+		layerContour.setThreshold(1);
+		layerContour.findContours(layerImage);
+		
+		infillImages.push_back(layerImage);
+		infillContours.push_back(layerContour);
+		
+		
+		
+		
+		// Layer mask B
+		// Load the layer data from the slice image
+		layerImage = sliceImages[step];
+		
+		// Erode it one more time to avoid overlapping a shell 
+		layerImage.erode();
+		layerImage.erode();
+		layerImage.erode();
+		layerImage.erode();
+		layerImage.erode();
+		layerImage.erode();
+		
+		// Now, add a checkerboard mask and then erode the image to generate infill.
+		// We want to make two sets of rectangles in a checkerboard pattern.
+		for (int yScan = 0; yScan < height; yScan++) {
+			
+			// Pattern layer 0 is blank.
+			if ((yScan/infillGridSize)%4 == 1) {
+				for (int xScan = 0; xScan < width; xScan++) {
+					layerImage.getPixels()[yScan*width + xScan] = 0;					
+				}
+			}
+			// Pattern layer 1, checkers
+			else if ((yScan/infillGridSize)%4 == 2) {
+				for (int xScan = 0; xScan < width; xScan++) {			
+					if (xScan %(infillGridSize*2) < infillGridSize) {
+						// First, just blank out the whole line.
+						layerImage.getPixels()[yScan*width + xScan] = 0;
+					}
+				}
+			}
+			// Pattern layer 3, offset checkers
+			else if ((yScan/infillGridSize)%4 == 0) {
+				for (int xScan = 0; xScan < width; xScan++) {			
+					if ((xScan) %(infillGridSize*2) >= infillGridSize) {
+						// First, just blank out the whole line.
+						layerImage.getPixels()[yScan*width + xScan] = 0;
+					}
+				}
+			}
+		}
+		
+		// Find the contours for the image
+
 		layerContour.setThreshold(1);
 		layerContour.findContours(layerImage);
 		

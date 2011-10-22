@@ -25,11 +25,13 @@ class SimpleSkein {
 private:
 	ofImage depthMapImage; // 2d depth map
 
-	vector<ofxCvGrayscaleImage> sliceImages;  // Slice data, in grayscale.
-	vector<ofxCvGrayscaleImage> infillImages;  // Infill data, in grayscale.
+	vector<ofxCvGrayscaleImage> sliceImages;  // Slice data, in grayscale. One per layer.
+	vector<ofxCvGrayscaleImage> infillImages;  // Infill data, in grayscale. Two per layer (A mask and B mask).
+	vector<ofxCvGrayscaleImage> topfillImages;  // Topfill data, in grayscale. One per layer.
 	
-	vector<ofxCv::ContourFinder> sliceContours;		// Contours for external shells
-	vector<ofxCv::ContourFinder> infillContours;	// Contours for infill
+	vector<ofxCv::ContourFinder> sliceContours;		// Contours for external shells, one per shell per layer.
+	vector<ofxCv::ContourFinder> infillContours;	// Contours for infill, two per (A mask and B mask).
+	vector<ofxCv::ContourFinder> topfillContours;	// Contours for topfill. One per layer.
 	
 	float maxDepth;
 	float minDepth;
