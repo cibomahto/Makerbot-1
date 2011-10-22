@@ -63,7 +63,8 @@ void testApp::setup() {
 	panel.addPanel("STL");
 	panel.addSlider("minDepth", 30, 10, 150);
 	panel.addSlider("maxDepth", 80, 10, 150);
-	panel.addSlider("numSamples", 10, 5, 160);
+	panel.addSlider("numSamples", 10, 1, 160);
+	panel.addSlider("numShells", 1, 1, 10);
 	panel.addSlider("infillGridSize", 30, 5, 60);
 
 	panel.addToggle("showDepthMap", false);
@@ -135,7 +136,25 @@ void addTriangles(ofxSTLExporter& exporter, vector<Triangle>& triangles, vector<
 }
 
 #include "Poco/DateTimeFormatter.h"
-void testApp::update() {	
+void testApp::update() {
+
+#ifdef OFFLINE_TEST	
+	float pix[640*480];
+	for (int i = 0; i < 640*480; i++) {
+		pix[i] = ((i/640/2)%60) + 40;
+	}
+	
+	startTimer();
+	simpleSkein.minScanDepth = panel.getValueF("minDepth");
+	simpleSkein.maxScanDepth = panel.getValueF("maxDepth");
+	simpleSkein.numSamples = panel.getValueF("numSamples");
+	simpleSkein.numShells = panel.getValueF("numShells");
+	simpleSkein.infillGridSize = panel.getValueF("infillGridSize");
+	simpleSkein.skeinDepthMap(480, 640, pix);
+	skeinTime = stopTimer();
+#endif
+	
+	
 	kinect.update();
 	if(!panel.getValueB("pause") && kinect.isFrameNew())	{
 		zCutoff = panel.getValueF("zCutoff");
@@ -154,6 +173,10 @@ void testApp::update() {
 		float width = (se - nw).x;
 		float height = (se - nw).y;
 		globalScale = panel.getValueF("stlSize") / MAX(width, height);
+		
+#ifdef OFFLINE_TEST
+		globalScale = .2;
+#endif
 		
 		backOffset = panel.getValueF("backOffset") / globalScale;
 		
@@ -195,14 +218,16 @@ void testApp::update() {
 		postProcess();
 		postProcessTime = stopTimer();
 		
-		//startTimer();
+#ifndef OFFLINE_TEST
+		startTimer();
 		simpleSkein.minScanDepth = panel.getValueF("minDepth");
 		simpleSkein.maxScanDepth = panel.getValueF("maxDepth");
 		simpleSkein.numSamples = panel.getValueF("numSamples");
+		simpleSkein.numShells = panel.getValueF("numShells");
 		simpleSkein.infillGridSize = panel.getValueF("infillGridSize");
-		simpleSkein.skeinDepthMap(kinect.getHeight(), kinect.getWidth(), kinect.getDistancePixels(), .5);
-		
-		//skeinTime = stopTimer();
+		simpleSkein.skeinDepthMap(kinect.getHeight(), kinect.getWidth(), kinect.getDistancePixels());
+		skeinTime = stopTimer();
+#endif
 		
 		if(exportStl) {
 			string pocoTime = Poco::DateTimeFormatter::format(Poco::LocalDateTime(), "%Y-%m-%d at %H.%M.%S");
@@ -555,8 +580,8 @@ void testApp::draw() {
 	
 	cam.begin();
 	ofEnableLighting();
-		
-	if(!surface.empty()) {		
+
+	if(!surface.empty()) {
 		ofPushStyle();
 		ofPopStyle();
 		
@@ -575,10 +600,10 @@ void testApp::draw() {
 		
 		// Draw the depth map.
 		ofPushMatrix();
-			glRotatef(180,0,0,1);
+//			glRotatef(180,0,0,1);
 			// TODO: Why doesn't this line up?
-			glTranslated(0,0,backOffset);
-			glScalef(globalScale/8,globalScale/8,globalScale/8);
+//			glTranslated(0,0,backOffset);
+//			glScalef(globalScale/8,globalScale/8,globalScale/8);
 		
 			simpleSkein.draw(panel.getValueB("showDepthMap"),
 							 panel.getValueB("showSliceImages"),
@@ -605,8 +630,9 @@ void testApp::draw() {
 	ofDrawBitmapString("tris: " + ofToString((int) triangles.size()), 0, 50);
 	ofDrawBitmapString("back: " + ofToString((int) backTriangles.size()), 0, 60);
 	ofDrawBitmapString("postProcessTime: " + ofToString((int) postProcessTime), 0, 70);
-	ofDrawBitmapString("minDistance: " + ofToString((int) simpleSkein.getMinDepth()), 0, 80);
-	ofDrawBitmapString("maxDistance: " + ofToString((int) simpleSkein.getMaxDepth()), 0, 90);
+	ofDrawBitmapString("skeinTime: " + ofToString((int) skeinTime), 0, 80);
+	ofDrawBitmapString("minDistance: " + ofToString((int) simpleSkein.getMinDepth()), 0, 90);
+	ofDrawBitmapString("maxDistance: " + ofToString((int) simpleSkein.getMaxDepth()), 0, 100);
 	ofPopMatrix();
 }
 

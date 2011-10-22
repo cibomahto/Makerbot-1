@@ -15,6 +15,8 @@ using namespace cv;
 #include "ofxReplicatorG.h"
 #endif
 
+#define OFFLINE_TEST
+
 // constant scale regardless of size
 // oriented correctly and sitting against the bed
 
@@ -87,5 +89,5 @@ public:
 	
 	SimpleSkein simpleSkein;
 	
-	float injectWatermarkTime, updateSurfaceTime, updateTrianglesTime, updateBackTime, postProcessTime, renderTime;
+	float injectWatermarkTime, updateSurfaceTime, updateTrianglesTime, updateBackTime, postProcessTime, renderTime, skeinTime;
 };

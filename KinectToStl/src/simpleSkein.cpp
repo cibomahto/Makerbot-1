@@ -7,10 +7,6 @@
  *
  */
 
-#include <iostream>
-#include <fstream>
-
-
 #include "simpleSkein.h"
 
 SimpleSkein::SimpleSkein() {
@@ -18,7 +14,18 @@ SimpleSkein::SimpleSkein() {
 	minScanDepth = 40;
 	maxScanDepth = 65;
 	numSamples = 10;
+	numShells = 1;
 	infillGridSize = 20;
+	
+	feedrate = 1800;
+	flowrate = 4.47;
+	layerHeight = .3;
+	zOffset = .78;
+	
+	reversalTime = 15;
+	reversalRPM = 30;
+	pushbackTime = 16;
+	pushbackRPM = 30;
 }
 
 SimpleSkein::~SimpleSkein() {
@@ -35,7 +42,7 @@ void SimpleSkein::draw(bool drawDepth,
 	
 	glPushMatrix();
 	for(int layer = 0; layer < sliceImages.size(); layer++) {
-		glTranslated(0,0,200*layerHeight/numSamples);
+		glTranslated(0,0,400*layerHeight/numSamples);
 
 		if (drawSliceThresholds) {
 			ofEnableBlendMode(OF_BLENDMODE_ADD);
@@ -47,7 +54,9 @@ void SimpleSkein::draw(bool drawDepth,
 			ofSetColor(0,0,200);
 			glPushMatrix();
 			glTranslated(-depthMapImage.getWidth()/2,-depthMapImage.getHeight()/2,.1);
-			sliceContours[layer].draw();
+			for (int shell = 0; shell < numShells; shell++) {
+				sliceContours[layer*numShells+shell].draw();
+			}
 			glPopMatrix();
 			ofSetColor(255,255,255);
 		}
@@ -68,6 +77,49 @@ void SimpleSkein::draw(bool drawDepth,
 		}
 	}
 	glPopMatrix();
+}
+
+void SimpleSkein::writeContour(std::ofstream& file, vector<cv::Point> points, int layer) {
+	char buff[200];
+	
+	// Scaling pixels to mm
+	float scale = .1;
+	float xShift = -depthMapImage.getWidth()/2;
+	float yShift = -depthMapImage.getHeight()/2;
+	
+	// Move to the first point in the contour
+	sprintf(buff, "G1 X%03f Y%03f Z%03f F%03f",
+			(points[0].x+xShift)*scale,
+			(points[0].y+yShift)*scale,
+			(double)layer*layerHeight + zOffset,
+			feedrate);
+	file << buff << std::endl;
+	
+	// Turn the extruder on
+	file << "M101" << std::endl;
+	
+	// Do pushback (standing still, not integrated into the move)
+	file << "M108 R" << pushbackRPM << std::endl;
+	file << "G4 P" << pushbackTime << std::endl;
+	file << "M108 R" << flowrate << std::endl;
+	
+	// Move to each point in the contour
+	for(int pointIndex = 1; pointIndex < points.size(); pointIndex++) {
+		sprintf(buff, "G1 X%03f Y%03f Z%03f F%03f",
+				(points[pointIndex].x+xShift)*scale,
+				(points[pointIndex].y+yShift)*scale,
+				(double)layer*layerHeight + zOffset,
+				feedrate);
+		file << buff << std::endl;
+	}
+	
+	// Do reversal (standing still, not integrated into the move)
+	file << "M102" << std::endl;	
+	file << "M108 R" << reversalRPM << std::endl;
+	file << "G4 P" << reversalTime << std::endl;
+	
+	// Turn the extruder off
+	file << "M103" << std::endl;
 }
 
 void SimpleSkein::makeGcode(std::string fname) {
@@ -97,57 +149,25 @@ void SimpleSkein::makeGcode(std::string fname) {
 	myfile << "(**** begin pre-wipe commands ****)" << std::endl;
 	myfile << "G1 X57.0 Y-57.0 Z10.0 F3300.0 (move to waiting position)" << std::endl;
 	myfile << "M6 T0 (wait for toolhead parts, nozzle, HBP, etc., to reach temperature)" << std::endl;
-	
-	
-	
-	char buff[200];
-	
-	// Skein variables
-	float feedrate = 1800;		// in mm/s- this is fixed.
-	float flowrate = 1.573;		// in RPM
-	float layerHeight = .3;		// in mm
-	float zOffset = .78;		// in mm - added to all z coordinates.
 
-	// Scaling pixels to mm
-	float scale = .1;
-	float xShift = -depthMapImage.getWidth()/2;
-	float yShift = -depthMapImage.getHeight()/2;
-
-	
-	
+	float layers = infillContours.size();
+		
 	// For each layer
-	for(int layer = 0; layer < sliceContours.size(); layer++) {
+	for(int layer = 0; layer < layers; layer++) {
 		myfile << "(On layer: " << layer << ")" << std::endl;
 		
-		// For each contour on the slice
-		for(int contour = 0; contour < sliceContours[layer].size(); contour++) {
-			myfile << "(On contour: " << contour << ")" << std::endl;
-			
-			vector<cv::Point> points = sliceContours[layer].getContour(contour);
-			
-			// Move to the first point in the contour
-			sprintf(buff, "G1 X%03f Y%03f Z%03f F%03f",
-				    (points[0].x+xShift)*scale,
-				    (points[0].y+yShift)*scale,
-				    (double)layer*layerHeight + zOffset,
-				    feedrate);
-			myfile << buff << std::endl;
-				  
-			// Turn the extruder on
-			myfile << "M101" << std::endl;
-			
-			// Move to each point in the contour
-			for(int pointIndex = 1; pointIndex < points.size(); pointIndex++) {
-				sprintf(buff, "G1 X%03f Y%03f Z%03f F%03f",
-						(points[pointIndex].x+xShift)*scale,
-						(points[pointIndex].y+yShift)*scale,
-						(double)layer*layerHeight + zOffset,
-						feedrate);
-				myfile << buff << std::endl;
+		// for each shell in the layer
+		for(int shell = 0; shell < numShells; shell++) {
+			int layerIndex = layer*numShells + shell;
+
+			// For each contour on the slice
+			for(int contour = 0; contour < sliceContours[layerIndex].size(); contour++) {
+				myfile << "(On contour: " << contour << ")" << std::endl;
+				
+				vector<cv::Point> points = sliceContours[layerIndex].getContour(contour);
+				writeContour(myfile, points, layer);
 			}
-			
-			// Turn the extruder off
-			myfile << "M103" << std::endl;
+
 		}
 		
 		// For each contour on the infill
@@ -155,30 +175,7 @@ void SimpleSkein::makeGcode(std::string fname) {
 			myfile << "(On contour: " << contour << ")" << std::endl;
 			
 			vector<cv::Point> points = infillContours[layer].getContour(contour);
-			
-			// Move to the first point in the contour
-			sprintf(buff, "G1 X%03f Y%03f Z%03f F%03f",
-				    (points[0].x+xShift)*scale,
-				    (points[0].y+yShift)*scale,
-				    (double)layer*layerHeight + zOffset,
-				    feedrate);
-			myfile << buff << std::endl;
-			
-			// Turn the extruder on
-			myfile << "M101" << std::endl;
-			
-			// Move to each point in the contour
-			for(int pointIndex = 1; pointIndex < points.size(); pointIndex++) {
-				sprintf(buff, "G1 X%03f Y%03f Z%03f F%03f",
-						(points[pointIndex].x+xShift)*scale,
-						(points[pointIndex].y+yShift)*scale,
-						(double)layer*layerHeight + zOffset,
-						feedrate);
-				myfile << buff << std::endl;
-			}
-			
-			// Turn the extruder off
-			myfile << "M103" << std::endl;
+			writeContour(myfile, points, layer);
 		}
 	}
 	
@@ -214,15 +211,45 @@ void SimpleSkein::makeGcode(std::string fname) {
 	myfile.close();
 }
 
-void SimpleSkein::skeinDepthMap(int height, int width, float* pixels, float layerHeight_) {
+float SimpleSkein::getHeightForSample(int sample) {
+	return (maxScanDepth - minScanDepth)*((float)(numSamples - sample)/numSamples) + minScanDepth;
+}
+	
+
+void SimpleSkein::skeinDepthMap(int height, int width, float* pixels) {
 	// We want to go through the depth map, making slices at various layer heights and then converting
 	// them into movements. Facile!
 	
-	layerHeight = layerHeight_;
-	
 	maxDepth = minDepth = pixels[0];
 	
-	// First, downsample the data into 8- bits.
+	// Cut out the edge of the image, so that erode works correctly on the edge.
+	// Alternatively, one could just make the image a bit bigger, but that takes work.
+	{
+		int xScan;
+		int yScan;
+	
+		xScan = 0;
+		for (yScan = 0; yScan < height; yScan+=1) {
+			pixels[yScan*width + xScan] = 9999;
+		}
+
+		xScan = width - 1;
+		for (yScan = 0; yScan < height; yScan+=1) {
+			pixels[yScan*width + xScan] = 9999;
+		}
+
+		yScan = 0;
+		for (xScan = 0; xScan < width; xScan+=1) {
+			pixels[yScan*width + xScan] = 9999;
+		}
+
+		yScan = height - 1;
+		for (xScan = 0; xScan < width; xScan+=1) {
+			pixels[yScan*width + xScan] = 9999;
+		}
+	}
+	
+	// Downsample the data into 8- bits.
 	unsigned char charPixels[height*width];
 	for (uint i = 0; i < height*width; i++) {
 		if (pixels[i] > maxDepth) {
@@ -232,7 +259,8 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels, float laye
 			minDepth = pixels[i];
 		}
 		
-		charPixels[i] = pixels[i]/2;
+		// Map the region of interest into the 8-bit plane
+		charPixels[i] = ofMap(pixels[i],minScanDepth,maxScanDepth,0,255);
 	}
 //	
 //	// 2. Load the data into an image for later display
@@ -244,95 +272,100 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels, float laye
 	infillImages.clear();
 	infillContours.clear();
 	
-	// for each layer
-	float min = minScanDepth;
-	float max = maxScanDepth;
-	int steps = numSamples;
-
 	
 	// Detect contours along the edges
-	for (int step = 0; step < steps; step++) {
-		float currentSliceHeight = (max - min)*((float)(steps - step)/steps) + min;
-		
-		// 3. build thresholded map
-		ofImage layerImage;
-		unsigned char charLayerPixels[height*width];
-		for (uint i = 0; i < height*width; i++) {
-			if (pixels[i] < currentSliceHeight) {
-				charLayerPixels[i] = 15;
-			}
-			else {
-				charLayerPixels[i] = 0;
-			}
-		}
-		layerImage.setFromPixels(charLayerPixels, width, height, OF_IMAGE_GRAYSCALE);
-		
-		// Find the contours for the image
-		ofxCv::ContourFinder layerContour;
-		layerContour.setThreshold(1);
-		layerContour.findContours(layerImage);
-		
-		sliceImages.push_back(layerImage);
-		sliceContours.push_back(layerContour);
-	}
-	
-	// Now, add a checkerboard mask and then erode the image to generate infill.
-	
-	// We want to make two sets of rectangles in a checkerboard pattern.
-	for (int yScan = 0; yScan < height; yScan++) {
-		for (int xScan = 0; xScan < width; xScan++) {
-			// If we are on an even set of rows, we want to blank out the first rectangle.
-			if (yScan %(infillGridSize*2) < infillGridSize) {
-				if (xScan %(infillGridSize*2) < infillGridSize) {
-					// First, just blank out the whole line.
-					pixels[yScan*width + xScan] = 9999;
-				}
-			}
-			else {
-				if (xScan %(infillGridSize*2) >= infillGridSize) {
-					// First, just blank out the whole line.
-					pixels[yScan*width + xScan] = 9999;
-				}
-			}
-		}
-	}
-	
-	// And then chop off the edges of them as well, so that the checkers aren't connected.
-	for (int yScan = 0; yScan < height; yScan+=infillGridSize) {
-		for (int xScan = 0; xScan < width; xScan+=1) {
-			pixels[yScan*width + xScan] = 9999;
-		}
-	}
-	
-	for (int xScan = 0; xScan < width; xScan+=infillGridSize) {
-		for (int yScan = 0; yScan < height; yScan+=1) {
-			pixels[yScan*width + xScan] = 9999;
-		}
-	}
-	
-	
-	// Detect contours for the infill.
-	for (int step = 0; step < steps; step++) {
-		float currentSliceHeight = (max - min)*((float)(steps - step)/steps) + min;
+	for (int step = 0; step < numSamples; step++) {
 		
 		// 3. build thresholded map
 		ofxCvGrayscaleImage layerImage;
-		
 		unsigned char charLayerPixels[height*width];
 		for (uint i = 0; i < height*width; i++) {
-			if (pixels[i] < currentSliceHeight) {
+			if (pixels[i] < getHeightForSample(step)) {
 				charLayerPixels[i] = 15;
 			}
 			else {
 				charLayerPixels[i] = 0;
 			}
 		}
-		
 		layerImage.allocate(width, height);
 		layerImage.setFromPixels(charLayerPixels, width, height);
 		
-		// Erode the image to generate an offset for infill
+		// Run a countor+erode for each shell.
+		for (int shell = 0; shell < numShells; shell++) {
+			// If this isn't our first time through the loop, first erode the image.
+			if (shell > 0) {
+				layerImage.erode();
+				layerImage.erode();
+				layerImage.erode();
+				layerImage.erode();
+				layerImage.erode();
+				layerImage.erode();
+
+			}
+			
+			// Find the contours for the image
+			ofxCv::ContourFinder layerContour;
+			layerContour.setThreshold(1);
+			layerContour.findContours(layerImage);
+			
+			sliceContours.push_back(layerContour);
+		}
+		
+		sliceImages.push_back(layerImage);
+	}
+	
+	// Detect contours for the infill.
+	for (int step = 0; step < numSamples; step++) {	
+		// Load the layer data from the slice image
+		ofxCvGrayscaleImage layerImage = sliceImages[step];
+		
+		// Erode it one more time to avoid overlapping a shell 
 		layerImage.erode();
+		layerImage.erode();
+		layerImage.erode();
+		layerImage.erode();
+		layerImage.erode();
+		layerImage.erode();
+		
+		
+		// Now, add layer mask 'a' to build a zigzag support structure
+		
+		// Now, add a checkerboard mask and then erode the image to generate infill.
+		// We want to make two sets of rectangles in a checkerboard pattern.
+		for (int yScan = 0; yScan < height; yScan++) {
+			for (int xScan = 0; xScan < width; xScan++) {
+				// If we are on an even set of rows, we want to blank out the first rectangle.
+				if (yScan %(infillGridSize*2) < infillGridSize) {
+					if (xScan %(infillGridSize*2) < infillGridSize) {
+						// First, just blank out the whole line.
+						layerImage.getPixels()[yScan*width + xScan] = 0;
+					}
+				}
+				else {
+					if (xScan %(infillGridSize*2) >= infillGridSize) {
+						// First, just blank out the whole line.
+						layerImage.getPixels()[yScan*width + xScan] = 0;
+					}
+				}
+			}
+		}
+		
+		
+		
+		
+		// Chop off the edges of them as well, so that the checkers aren't connected.
+		for (int yScan = 0; yScan < height; yScan+=infillGridSize) {
+			for (int xScan = 0; xScan < width; xScan+=1) {
+				layerImage.getPixels()[yScan*width + xScan] = 0;
+			}
+		}
+		
+		for (int xScan = 0; xScan < width; xScan+=infillGridSize) {
+			for (int yScan = 0; yScan < height; yScan+=1) {
+				layerImage.getPixels()[yScan*width + xScan] = 0;
+			}
+		}
+		
 		
 		// Find the contours for the image
 		ofxCv::ContourFinder layerContour;

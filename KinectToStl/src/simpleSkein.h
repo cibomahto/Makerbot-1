@@ -7,9 +7,14 @@
  *
  */
 
+
+#include <iostream>
+#include <fstream>
+
 #include "ofMain.h"
 #include "ofxCv.h"
 #include "ofxOpenCv.h"
+
 using namespace ofxCv;
 using namespace cv;
 
@@ -20,16 +25,29 @@ class SimpleSkein {
 private:
 	ofImage depthMapImage; // 2d depth map
 
-	vector<ofImage> sliceImages;  // Slice data, in grayscale.
+	vector<ofxCvGrayscaleImage> sliceImages;  // Slice data, in grayscale.
 	vector<ofxCvGrayscaleImage> infillImages;  // Infill data, in grayscale.
 	
 	vector<ofxCv::ContourFinder> sliceContours;		// Contours for external shells
 	vector<ofxCv::ContourFinder> infillContours;	// Contours for infill
 	
-	float layerHeight;
-	
 	float maxDepth;
 	float minDepth;
+
+	/**
+	* Calculate the slice height for the current sample
+	* @param[in] sample slice number
+	* @return Layer height, in mm
+	*/
+	float getHeightForSample(int sample);
+	
+	/**
+	 * Write a contour (single extruded path) out to a file
+	 * @param[out] file File stream to write to
+	 * @param[in] points List of points to draw
+	 * @param[in] layer Layer number
+	 */
+	void writeContour(std::ofstream& file, vector<cv::Point> points, int layer);
 
 public:
     SimpleSkein();
@@ -40,7 +58,21 @@ public:
 	
 	int numSamples;		// Number of layer slices to cut the region of interest in our depth map to
 	
+	int numShells;		// Number of outside layers to make
 	int infillGridSize;	// Size of the infill grid to paint
+		
+	// Skein variables
+	float feedrate;		// in mm/s- this is fixed.
+	float flowrate;		// in RPM
+	float layerHeight;	// in mm
+	float zOffset;		// in mm - added to all z coordinates.
+	
+	// Reversal variables
+	float reversalTime;	// Amount of time to reverse after extrusion ends (ms)
+	float reversalRPM;	// Speed to reverse at (RPM)
+	float pushbackTime;	// Amount of time to push back before extrusion starts (ms)
+	float pushbackRPM;	// Speed to push back at (RPM)
+	
 	
 	float getMaxDepth() { return maxDepth; }
 	float getMinDepth() { return minDepth; }
@@ -63,7 +95,6 @@ public:
 	 * @param height Height of image, in pixels
 	 * @param width Width of image, in pixels
 	 * @param pixels depth array, from top left (?), in cm
-	 * @param layerHeight height of each slice, in cm, from 0 up.
 	 */
-    void skeinDepthMap(int height, int width, float* pixels, float layerHeight);
+    void skeinDepthMap(int height, int width, float* pixels);
 };
