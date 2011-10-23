@@ -15,7 +15,7 @@ using namespace cv;
 #include "ofxReplicatorG.h"
 #endif
 
-#define OFFLINE_TEST
+//#define OFFLINE_TEST
 
 // constant scale regardless of size
 // oriented correctly and sitting against the bed

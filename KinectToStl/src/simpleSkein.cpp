@@ -294,7 +294,7 @@ void SimpleSkein::skeinDepthMap(int height, int width, float* pixels) {
 		unsigned char charLayerPixels[height*width];
 		for (uint i = 0; i < height*width; i++) {
 			if (pixels[i] < getHeightForSample(step)) {
-				charLayerPixels[i] = 255;
+				charLayerPixels[i] = (255/numSamples);
 			}
 			else {
 				charLayerPixels[i] = 0;

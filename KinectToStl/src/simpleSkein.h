@@ -1,4 +1,20 @@
 /*
+ *  SimpleSkein: A direct Kinect-to-Gcode converter
+ *
+ *  Created By Matt Mets during Art&&Code 3D
+ *  Based on Kyle McDonald's KinectToSTL
+ *
+ *  Available online at:
+ *
+ *  https://github.com/cibomahto/Makerbot-1
+ */
+
+
+
+
+
+
+/*
  *  simpleSkein.h
  *  KinectToStl
  *

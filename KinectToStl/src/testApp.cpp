@@ -60,9 +60,7 @@ void testApp::setup() {
 	ofSetVerticalSync(true);
 	
 	panel.setup(250, 800);
-	panel.addPanel("STL");
-	panel.addSlider("minDepth", 30, 10, 150);
-	panel.addSlider("maxDepth", 80, 10, 150);
+	panel.addPanel("Camera");
 	panel.addSlider("numSamples", 10, 1, 160);
 	panel.addSlider("numShells", 1, 2, 15);
 	panel.addSlider("infillGridSize", 40, 5, 80);
@@ -72,7 +70,9 @@ void testApp::setup() {
 	panel.addToggle("showSliceContours", true);
 	panel.addToggle("showInfillImages", true);
 	panel.addToggle("showInfillContours", true);
+
 	
+	panel.addSlider("minDepth", 30, 10, 150);
 	panel.addSlider("zCutoff", 80, 20, 200);
 	panel.addSlider("fovWidth", .5, 0, 1);
 	panel.addSlider("fovHeight", .75, 0, 1);
@@ -146,7 +146,7 @@ void testApp::update() {
 	
 	startTimer();
 	simpleSkein.minScanDepth = panel.getValueF("minDepth");
-	simpleSkein.maxScanDepth = panel.getValueF("maxDepth");
+	simpleSkein.maxScanDepth = panel.getValueF("zCutoff");
 	simpleSkein.numSamples = panel.getValueF("numSamples");
 	simpleSkein.numShells = panel.getValueF("numShells");
 	simpleSkein.infillGridSize = panel.getValueF("infillGridSize");
@@ -221,7 +221,7 @@ void testApp::update() {
 #ifndef OFFLINE_TEST
 		startTimer();
 		simpleSkein.minScanDepth = panel.getValueF("minDepth");
-		simpleSkein.maxScanDepth = panel.getValueF("maxDepth");
+		simpleSkein.maxScanDepth = panel.getValueF("zCutoff");
 		simpleSkein.numSamples = panel.getValueF("numSamples");
 		simpleSkein.numShells = panel.getValueF("numShells");
 		simpleSkein.infillGridSize = panel.getValueF("infillGridSize");
